@@ -17,7 +17,7 @@ package helpMod;
 
 use Exporter 'import';
 
-@EXPORT_OK = qw( find tildeConvert checkFile formatDetector relToAbs setParInConfig addParToConfig 
+@EXPORT_OK = qw( find tildeConvert checkFile formatDetector relToAbs setParInConfig addParToConfig
     uptodate gtf2fasta clean_abort );
 
 use strict;
@@ -571,10 +571,18 @@ sub uptodate {
 sub clean_abort {
     my $configDir = shift;
     my $useexisting = shift;
+    my $ET_EPmode = shift;
     my $message = shift;
-    if (-d $configDir && not($useexisting)) {
-        rmtree( ["$configDir"] ) or die ("ERROR in file " . __FILE__ ." at line ". __LINE__
-            . "\nFailed to delete $configDir!\n");
+    if ( $ET_EPmode ){
+        my @suffixes = ( "_et", "_ep");
+    } else {
+        my @suffixes = ( "" );
+    }
+    foreach (@suffix){
+        if (-d $configDir$_ && not($useexisting)) {
+            rmtree( ["$configDir$_"] ) or die ("ERROR in file " . __FILE__ ." at line ". __LINE__
+                . "\nFailed to delete $configDir!\n");
+        }
     }
     print STDERR $message;
     exit(1);
