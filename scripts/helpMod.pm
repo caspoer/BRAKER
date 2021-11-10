@@ -573,13 +573,12 @@ sub clean_abort {
     my $useexisting = shift;
     my $ET_EPmode = shift;
     my $message = shift;
+    my @suffixes = ( "" );
     if ( $ET_EPmode ){
-        my @suffixes = ( "_et", "_ep");
-    } else {
-        my @suffixes = ( "" );
+        @suffixes = ( "_et", "_ep");
     }
-    foreach (@suffix){
-        if (-d $configDir$_ && not($useexisting)) {
+    foreach (@suffixes){
+        if (-d "$configDir$_" && not($useexisting)) {
             rmtree( ["$configDir$_"] ) or die ("ERROR in file " . __FILE__ ." at line ". __LINE__
                 . "\nFailed to delete $configDir!\n");
         }
