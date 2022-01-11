@@ -1194,19 +1194,17 @@ if ( $ET_EPmode == 0 && (!-d $genemarkDir) && ! $trainFromGth ) {
         . ": create working directory $genemarkDir.\n" if ($v > 2);
     print LOG "mkdir $genemarkDir\n" if ($v > 2);
 }
-if ( $ET_EPmode ) {
-    foreach my $gm_dir ( ($genemarkesDir, $genemarketDir, $genemarkepDir) ){
-        if ( defined($gm_dir)  && (!-e $gm_dir)) {
-            make_path($gm_dir) or die("ERROR in file " . __FILE__ ." at line "
-            . __LINE__ ."\nFailed to create direcotry $gm_dir!\n");
-            print LOG "\# "
-            . (localtime)
-            . ": create working directory $gm_dir.\n" if ($v > 2);
-            print LOG "mkdir $gm_dir\n" if ($v > 2);
-        }
+
+foreach my $gm_dir ( ($genemarkesDir, $genemarketDir, $genemarkepDir) ){
+    if ( defined($gm_dir)  && (!-e $gm_dir)) {
+        make_path($gm_dir) or die("ERROR in file " . __FILE__ ." at line "
+        . __LINE__ ."\nFailed to create direcotry $gm_dir!\n");
+        print LOG "\# "
+        . (localtime)
+        . ": create working directory $gm_dir.\n" if ($v > 2);
+        print LOG "mkdir $gm_dir\n" if ($v > 2);
     }
 }
-
 
 # set gthTrainGenes file
 if ( $gth2traingenes ) {
@@ -5622,12 +5620,11 @@ sub run_prothint_iter2 {
         . ": Running ProtHint again with additional seeds from augustus.hints.gtf "
         . "to produce more hints from protein sequence file "
         . "(this may take a couple of hours)...\n" if ($v > 2);
-    my $current_hintsfile = "$otherfilesDir/hintsfile.gff";
-    my $suffix = "_";
+    my $suffix = "";
     if ( $ET_EPmode ){
         $suffix = "_ep";
-        $current_hintsfile = "$otherfilesDir/hintsfile$suffix.gff";
     }
+    my $current_hintsfile = "$otherfilesDir/hintsfile$suffix.gff";
 
     # step 1: call prothint
     print LOG "\# " . (localtime)
@@ -6319,12 +6316,13 @@ sub add_other_hints {
             foreach (@current_hintsfiles) {
                 if ( $ET_EPmode ) {
                     foreach my $char (split //, $_->[2]) {
-                        $cmdString = "grep src=$char $filteredHintsFile >> ".$_->[0];
+                        $cmdString = "if grep -q src=$char $filteredHintsFile;"
+                            ." then grep src=$char $filteredHintsFile >> ".$_->[0]."; fi";
                         print LOG "\# "
                             . (localtime)
                             . ": adding hints from file $filteredHintsFile to ".$_->[0]."\n" if ($v > 3);
                             print LOG "$cmdString\n" if ($v > 3);
-                            system("$cmdString") <= 1
+                            system("$cmdString") == 0
                             or clean_abort("$AUGUSTUS_CONFIG_PATH/species/$species",
                             $useexisting, $ET_EPmode, "ERROR in file " . __FILE__ ." at line "
                             . __LINE__ ."\nFailed to execute: $cmdString!\n");
@@ -6779,10 +6777,10 @@ sub check_genemark_hints {
         $GeneMarkIntronThreshold = 10;
     }
     if ( $ET_EPmode ){
-        @suffixes = ( "et", "ep");
+        @suffixes = ( ".et", ".ep");
     }
     foreach (@suffixes) {
-        $current_genemark_hintsfile = "$genemark_hintsfile.$_";
+        $current_genemark_hintsfile = $genemark_hintsfile.$_;
         print LOG "\# "
             . (localtime)
             . ": Checking whether file $current_genemark_hintsfile contains "
@@ -9200,7 +9198,7 @@ sub augustus {
                         copy_ex_cfg($extrinsicCfgFile, "ex1$genesetId.cfg");
                         my $hintId = "hints".$genesetId;
                         make_hints_jobs( $augustus_dir, $genome_dir, $current_hintsfile,
-                            $extrinsicCfgFile, $localUTR, $hintId, $current_species );
+                            $extrinsicCfgFile, $localUTR, $hintId, $current_species);
                         run_augustus_jobs( "$otherfilesDir/$hintId.job.lst" );
                         join_aug_pred( $augustus_dir, "$otherfilesDir/augustus.$hintId.gff" );
                         make_gtf("$otherfilesDir/augustus.$hintId.gff");
@@ -9402,6 +9400,7 @@ sub make_hints_jobs{
     my $localUTR = shift;
     my $hintId = shift;
     my $current_species = shift;
+    print LOG "AAA".$current_species."\n";
     if( !uptodate([$genome, $thisHintsfile], ["$otherfilesDir/aug_$hintId.lst"]
         ) || $overwrite ) {
         print LOG "\# " . (localtime) . ": Making AUGUSTUS jobs with hintsfile "
@@ -9458,6 +9457,9 @@ sub make_hints_jobs{
                        .  "--allow_hinted_splicesites=gcag,atac ";
         if ( defined($optCfgFile) ) {
             $perlCmdString .= " --optCfgFile=$optCfgFile";
+        }
+        if ( $ET_EPmode ) {
+          $perlCmdString .= " --alternatives-from-sampling=on --minexonintronprob=0.05 --minmeanexonintronprob=0.4 --maxtracks=-1 --temperature=3";
         }
         if ($soft_mask) {
             $perlCmdString .= " --softmasking=1";
@@ -9836,6 +9838,7 @@ sub run_augustus_with_joingenes_parallel {
     my $genome_dir = shift;
     my $localUTR = shift;
     my $genesetId = shift;
+    print LOG "SPECIES $species\n";
     # if RNASeq and protein hints are given
     my $adjustedHintsFile = "$hintsfile.Ppri5";
     if( !uptodate( [$hintsfile], [$adjustedHintsFile]) || $overwrite ) {
@@ -9866,8 +9869,10 @@ sub run_augustus_with_joingenes_parallel {
     }
     copy_ex_cfg($extrinsicCfgFile, "ex1$genesetId.cfg");
     my $augustus_dir = "$otherfilesDir/augustus_tmp_Ppri5$genesetId";
+
+    print LOG "SPECIES AA $species\n";
     make_hints_jobs( $augustus_dir, $genome_dir, $adjustedHintsFile,
-        $extrinsicCfgFile, $localUTR, "Ppri5", $genesetId, $species);
+        $extrinsicCfgFile, $localUTR, "Ppri5".$genesetId, $species);
     run_augustus_jobs( "$otherfilesDir/Ppri5$genesetId.job.lst" );
     join_aug_pred( $augustus_dir, "$otherfilesDir/augustus.Ppri5$genesetId.gff" );
     make_gtf("$otherfilesDir/augustus.Ppri5$genesetId.gff");
@@ -9897,7 +9902,7 @@ sub run_augustus_with_joingenes_parallel {
     copy_ex_cfg($extrinsicCfgFile, "ex2$genesetId.cfg");
     $augustus_dir = "$otherfilesDir/augustus_tmp_E$genesetId";
     make_hints_jobs( $augustus_dir, $genome_dir, $adjustedHintsFile,
-        $extrinsicCfgFile, $localUTR, "E", $genesetId, $species);
+        $extrinsicCfgFile, $localUTR, "E".$genesetId, $species);
     run_augustus_jobs( "$otherfilesDir/E$genesetId.job.lst" );
     join_aug_pred( $augustus_dir, "$otherfilesDir/augustus.E$genesetId.gff" );
     make_gtf("$otherfilesDir/augustus.E$genesetId.gff");
